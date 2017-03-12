@@ -4,6 +4,12 @@ import (
 	"fmt"
 )
 
+////////////////////
+// This program generates and then solves a map that may contain obstacles.
+// There is currently minimal error checking, so beware.
+///////////////////
+
+
 // Assumes at least an 4x4 input
 func make_map_1(input_map [][]int) {
   input_map[0][3] = -1
@@ -31,7 +37,7 @@ func map_is_solvable(map_data [][]int) bool {
 
   // If the origin or destination are blocked, no point is attempting
   // to solve the map
-  if map_data[0][map_width-1] == -1 || map_data[map_width-1][0] == -1 {
+  if map_width < 1 || map_data[0][map_width-1] == -1 || map_data[map_width-1][0] == -1 {
     return false
   }
 
@@ -116,19 +122,22 @@ func main() {
   // input_map := map1()
   // input_map := map2()
   // input_map := map3()
-  //input_map := generate_open_map(8)
-  //make_map_1(input_map)
+  input_map := generate_open_map(8)
+  make_map_1(input_map)
 
-  //fmt.Println("Input Map")
-  //print_map(input_map)
-  //num_paths := solve_field(input_map)
+  fmt.Println("Input Map")
+  print_map(input_map)
+  num_paths := solve_field(input_map)
   //fmt.Println("", num_paths)
-  //fmt.Println("Populated Map")
-  //print_map(input_map)
+  fmt.Println("Populated Map")
+  print_map(input_map)
+  fmt.Println("Number of paths: ", num_paths)
 
+  /*
   for i:=1; i<31; i++{
     input_map := generate_open_map(i)
     num_paths := solve_field(input_map)
     fmt.Println("", num_paths)
   }
+  */
 }
