@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+  "fmt"
   "time"
 
   "github.com/golang-collections/go-datastructures/queue"
@@ -14,7 +14,6 @@ import (
 
 const(
   DEBUG bool = false
-  ONE int64 = 1
   OPEN int = 0
   BLOCKED int = -1
   ENQUEUED int = -2
@@ -25,16 +24,18 @@ type position struct{
   column int
 }
 
-// Assumes at least an 50x50 input. Makes a "wall" in column 48, preventing paths to the left
-// of it except in row 9
+// make_map_1 creates a "wall" in column 48, preventing paths to the left
+// of it except in the bottow row.
+// Assumes input is at least 50x50
 func make_map_1(input_map [][]int) {
   for i:=0; i<48; i++ {
     input_map[i][48] = BLOCKED
   }
 }
 
-// Assumes at least an 40x40 input, makes a "wall" in column 38
-// preventing work to the left of it other than the bottom row
+// make_map_2 makes a "wall" in column 98 preventing paths to the left 
+// of it other than the bottom row.
+// Assumes at least a 100x100 input
 func make_map_2(input_map [][]int) {
   for i:=0; i<98; i++ {
     input_map[i][98] = BLOCKED
@@ -46,19 +47,19 @@ func make_map_2(input_map [][]int) {
 func generate_open_map(side_length int) [][]int {
   map_data := make([][]int,side_length )
 
-  for y:=0; y<side_length; y++ {
+  for row := 0; row < side_length; row++ {
     row_data := make([]int, side_length)
-    for x:=0; x<side_length; x++ {
-      row_data[x] = OPEN
+    for column := 0; column < side_length; column++ {
+      row_data[column] = OPEN
     }
-    map_data[y] = row_data
+    map_data[row] = row_data
   }
 
   return map_data
 }
 
 // map_is_solvable currently checks that neither the starting point nor ending
-// point are blocked and that the map is at least 1x1
+// point are blocked, and that the map is at least 1x1
 func map_is_solvable(map_data [][]int) bool {
   map_width := len(map_data)
 
@@ -71,22 +72,9 @@ func map_is_solvable(map_data [][]int) bool {
   return true
 }
 
-func position_is_blocked(y, x int, map_data [][]int) bool {
-  return map_data[y][x] == BLOCKED
-}
-
-// If the data in the position immediately above the current position is
-// valid, then add its number of valid path to this position's
-func contribution_from_above_neighbor_position(cur_position *position, map_data [][]int) int {
-      if cur_position.row > 0 && map_data[cur_position.row-1][cur_position.column] != BLOCKED {
-        return map_data[cur_position.row-1][cur_position.column]
-      } else {
-        return 0
-      }
-}
-
-// If the data in the position immediately above the current position is
-// valid, then add its number of valid path to this position's
+// contribution_from_above_neighbor determines whether the data in the position
+// immediately above the current position is valid and, if so,
+// add its number of valid path to this position's
 func contribution_from_above_neighbor(row, column int, map_data [][]int) int {
       if row > 0 && map_data[row-1][column] != BLOCKED {
         return map_data[row-1][column]
@@ -95,16 +83,9 @@ func contribution_from_above_neighbor(row, column int, map_data [][]int) int {
       }
 }
 
-func contribution_from_right_neighbor_position(cur_position *position, map_data [][]int) int {
-  map_width := len(map_data)
-
-  if cur_position.column < map_width - 1 && map_data[cur_position.row][cur_position.column+1] != BLOCKED {
-    return map_data[cur_position.row][cur_position.column+1]
-  } else {
-    return 0
-  }
-}
-
+// contribution_from_right_neighbor determines whether the data in the 
+// position immediately to the right of the current position is valid 
+// and, if so, add its number of valid path to this position's
 func contribution_from_right_neighbor(row, column int, map_data [][]int) int {
   map_width := len(map_data)
 
@@ -115,21 +96,16 @@ func contribution_from_right_neighbor(row, column int, map_data [][]int) int {
   }
 }
 
+// initialize_map_data sets the number of valid paths for the starting-point
+// to 1.
 func initialize_map_data(map_data [][]int) {
   map_width := len(map_data)
   map_data[0][map_width-1] = 1
 }
 
-func enqueue_position_if_valid(row, column int, map_data [][]int, my_queue *queue.RingBuffer){
-  map_width := len(map_data)
-
-  // Verify that row and column values are valid and that the position is open
-  if row < map_width && column >= 0 && map_data[row][column] == OPEN {
-    my_queue.Put(&position{row,column})
-    map_data[row][column] = ENQUEUED
-  }
-}
-
+// initialize_map_data sets the number of valid paths for the starting-point
+// to 1. Then enqueues the positions to the left and right of the
+// starting-point.
 func initialize_map_data_with_rb(map_data [][]int, my_queue *queue.RingBuffer) {
   map_width := len(map_data)
   map_data[0][map_width-1] = 1
@@ -142,18 +118,32 @@ func initialize_map_data_with_rb(map_data [][]int, my_queue *queue.RingBuffer) {
   }
 }
 
+// enqueue_position_if_valid does some basic bounds checking and value
+// validation prior to enqueueing the specified position
+func enqueue_position_if_valid(row, column int, map_data [][]int, my_queue *queue.RingBuffer){
+  map_width := len(map_data)
+
+  // Verify that row and column values are valid and that the position is open
+  if row < map_width && column >= 0 && map_data[row][column] == OPEN {
+    my_queue.Put(&position{row,column})
+    map_data[row][column] = ENQUEUED
+  }
+}
+
+// extract_final_result returns the value at the end-point.
+// Assumes that map_data is at least 1x1
 func extract_final_result(map_data [][]int) int {
   map_width := len(map_data)
   return map_data[map_width-1][0]
 }
 
+// populate_map_with_rb computes the valid paths to each position
+// reachable from the starting-point.
 func populate_map_with_rb(map_data [][]int, my_queue *queue.RingBuffer) {
   // for debug purposes only
   max_queue_size := my_queue.Len()
-  loop_counter := 0
 
   for my_queue.Len() > 0 {
-    loop_counter++
     temp, err := my_queue.Get()
     if nil != err {
       fmt.Errorf("Received error %+v while dequeueing", err)
@@ -166,8 +156,8 @@ func populate_map_with_rb(map_data [][]int, my_queue *queue.RingBuffer) {
 
     // We assume that only valid positions are enqueued, so we blindly use
     // this value
-    map_data[temp_position.row][temp_position.column] = contribution_from_right_neighbor_position(temp_position, map_data) +
-      contribution_from_above_neighbor_position(temp_position, map_data)
+    map_data[temp_position.row][temp_position.column] = contribution_from_right_neighbor(temp_position.row, temp_position.column, map_data) +
+      contribution_from_above_neighbor(temp_position.row, temp_position.column, map_data)
 
     // enqueue the fields to the left and down, if they are valid 
     enqueue_position_if_valid(temp_position.row, temp_position.column-1, map_data, my_queue)
@@ -180,20 +170,17 @@ func populate_map_with_rb(map_data [][]int, my_queue *queue.RingBuffer) {
     fmt.Printf("pos %d, %d possibly enqueued %d, %d\n", temp_position.row, temp_position.column, temp_position.row+1, temp_position.column)
     }
 
-    /*
     if my_queue.Len() > max_queue_size {
       max_queue_size = my_queue.Len()
     }
-    */
   }
 
   if DEBUG {
-    fmt.Printf("!!!!! loop counter: %d\n", loop_counter)
     fmt.Printf("!!!!! max queue size: %d\n", max_queue_size)
   }
 }
 
-// populate_map will iterate over all of the fields in the map, populating each
+// linear_populate_map will iterate over all of the fields in the map, populating each
 // non-blocked field with the number of paths that can lead to that position
 func linear_populate_map(map_data [][]int) {
   map_width := len(map_data)
@@ -241,7 +228,7 @@ func print_map(map_data [][]int){
 
   for y:= 0; y<map_width; y++ {
      for x:= 0; x<map_width; x++ {
-        fmt.Printf(" %3d ",map_data[y][x])
+        fmt.Printf(" %5d ",map_data[y][x])
      }
      fmt.Println("\n")
   }
@@ -254,7 +241,7 @@ func main() {
   var queue_num_paths int
 
   {
-    input_map := generate_open_map(100)
+    input_map := generate_open_map(10)
     //make_map_1(input_map)
     //make_map_2(input_map)
 
@@ -269,7 +256,7 @@ func main() {
   }
 
   {
-    input_map := generate_open_map(100)
+    input_map := generate_open_map(10)
     //make_map_1(input_map)
     //make_map_2(input_map)
 
