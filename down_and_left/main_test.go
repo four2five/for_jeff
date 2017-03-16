@@ -10,6 +10,28 @@ func OutputTestResults(test_name string, num_paths int64, elapsed_time time.Dura
     fmt.Printf("%-45s %20d %15s %10v\n", test_name, num_paths, " elapsed time: ", elapsed_time)
 }
 
+func TestUnsolvableLinear(t *testing.T) {
+    input_map := generate_open_map(4)
+    make_unsolvable_map_bad_start(input_map)
+
+    start := time.Now()
+    num_paths := linear_solve_field(input_map)
+    elapsed := time.Since(start)
+
+    OutputTestResults("unsolvable linear solution: ", num_paths, elapsed)
+}
+
+func TestUnsolvableQueueAndThread(t *testing.T) {
+    input_map := generate_open_map(4)
+    make_unsolvable_map_bad_end(input_map)
+
+    start := time.Now()
+    num_paths := solve_field_with_channel_and_threads(input_map)
+    elapsed := time.Since(start)
+
+    OutputTestResults("unsolvable queue & thread solution: ", num_paths, elapsed)
+}
+
 func Test4x4Linear(t *testing.T) {
     input_map := generate_open_map(4)
 
