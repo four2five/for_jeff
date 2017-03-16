@@ -6,6 +6,13 @@ import(
   "time"
 )
 
+/////////////////////
+//
+// Tests proving the correctness and measuring the run-times of
+// the three approaches when applied to a variety of maps.
+//
+/////////////////////
+
 func OutputTestResults(test_name string, num_paths int64, elapsed_time time.Duration) {
     fmt.Printf("%-45s %20d %15s %10v\n", test_name, num_paths, " elapsed time: ", elapsed_time)
 }

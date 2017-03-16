@@ -6,8 +6,10 @@ import (
 )
 
 ////////////////////
-// This program generates and then solves a map that may contain obstacles.
-// There is currently minimal error checking, so beware.
+//
+// This main function generates the same map three times and solves it via three different methods,
+// reporting the timing for each approach.
+//
 ///////////////////
 
 func main() {

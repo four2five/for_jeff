@@ -17,6 +17,7 @@ import(
 // starting-point.
 func initialize_map_data_with_channel(map_data [][]int64, buf_channel chan position) {
   map_width := len(map_data)
+  // valid solutions always start in the to-right corner
   map_data[0][map_width-1] = 1
 
   // For maps that are at least 2x2, add the squares to the left and
@@ -39,23 +40,22 @@ func enqueue_position_if_valid(row, column int, map_data [][]int64, buf_channel 
   }
 }
 
-// populate_map_with_rb computes the valid paths to each position
+// populate_map_with_channel computes the valid paths to each position
 // reachable from the starting-point.
-func populate_map_with_rb(map_data [][]int64, buf_channel chan position, output_message chan bool) {
+func populate_map_with_channel(map_data [][]int64, buf_channel chan position, output_message chan bool) {
 
   for temp_position := range buf_channel {
     if DEBUG {
       fmt.Printf("processing %v\n", temp_position)
     }
 
-    pos_value := int64(0)
-    // We assume that only valid positions are enqueued, so we blindly use
-    // this value
-    pos_value += contribution_from_right_neighbor(temp_position.row, temp_position.column, map_data)
-    pos_value += contribution_from_above_neighbor(temp_position.row, temp_position.column, map_data)
-    map_data[temp_position.row][temp_position.column] = pos_value
-    if pos_value < 1 && DEBUG {
-      fmt.Errorf("wrote a position value of %d to [%d,%d]", pos_value, temp_position.row, temp_position.column)
+    map_data[temp_position.row][temp_position.column] =
+      contribution_from_right_neighbor(temp_position.row, temp_position.column, map_data) +
+      contribution_from_above_neighbor(temp_position.row, temp_position.column, map_data)
+
+    if map_data[temp_position.row][temp_position.column] < 1{
+      fmt.Errorf("wrote a position value of %d to [%d,%d]", map_data[temp_position.row][temp_position.column],
+        temp_position.row, temp_position.column)
     }
 
     // enqueue the fields to the left and down, if they are valid 
@@ -76,14 +76,16 @@ func populate_map_with_rb(map_data [][]int64, buf_channel chan position, output_
   }
 }
 
-// populate_map_with_rb computes the valid paths to each position
-// reachable from the starting-point.
-func populate_map_with_rb_and_threads(map_data [][]int64, buf_channel chan position) {
+// populate_map_with_channel_and_threads computes the valid paths to each position
+// reachable from the starting-point using potentially multiple go funcs and a shared channel.
+func populate_map_with_channel_and_threads(map_data [][]int64, buf_channel chan position) {
+  // Create a channel for each go func and then spawn them
   func_done_chan := make(chan bool, NUM_THREADS)
   for i := 0; i < NUM_THREADS; i++ {
-    go populate_map_with_rb(map_data, buf_channel, func_done_chan)
+    go populate_map_with_channel(map_data, buf_channel, func_done_chan)
   }
 
+  // Block until all of the go funcs signal that they are done
   for i := 0; i < NUM_THREADS; i++ {
     <-func_done_chan
   }
@@ -99,7 +101,7 @@ func solve_field_with_channel(map_data [][]int64) int64 {
   buf_channel := make(chan position, 2*len(map_data))
 
   initialize_map_data_with_channel(map_data, buf_channel)
-  populate_map_with_rb(map_data, buf_channel, nil)
+  populate_map_with_channel(map_data, buf_channel, nil)
 
   return extract_final_result(map_data)
 }
@@ -114,7 +116,7 @@ func solve_field_with_channel_and_threads(map_data [][]int64) int64 {
   buf_channel := make(chan position, 2*len(map_data))
 
   initialize_map_data_with_channel(map_data, buf_channel)
-  populate_map_with_rb(map_data, buf_channel, nil)
+  populate_map_with_channel(map_data, buf_channel, nil)
 
   return extract_final_result(map_data)
 }
