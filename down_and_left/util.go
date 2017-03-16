@@ -5,6 +5,12 @@ import (
   "time"
 )
 
+///////////////////
+//
+// Utility functions, consts and common struct definitions.
+//
+///////////////////
+
 const(
   DEBUG bool = false
   // DEBUG bool = true

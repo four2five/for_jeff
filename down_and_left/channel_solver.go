@@ -4,6 +4,14 @@ import(
   "fmt"
 )
 
+/////////////////
+//
+// A solution that uses channels and sometimes go funcs to
+// solve the down-and-left problem.
+//
+//////////////////
+
+
 // initialize_map_data sets the number of valid paths for the starting-point
 // to 1. Then enqueues the positions to the left and right of the
 // starting-point.

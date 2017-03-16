@@ -1,5 +1,13 @@
 package main
 
+//////////////
+//
+// An iterative, single-threaded solution for the down-and-left
+// problem.
+//
+//////////////
+
+
 // initialize_map_data sets the number of valid paths for the starting-point
 // to 1.
 func initialize_map_data(map_data [][]int64) {
