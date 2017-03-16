@@ -19,7 +19,7 @@ const(
   BLOCKED int64 = -1
   ENQUEUED int64 = -2
   PROCESSING int64 = -3
-  NUM_THREADS int = 4
+  NUM_THREADS int = 2
   INPUT_MAP_WIDTH int = 4
 )
 
@@ -91,13 +91,13 @@ func map_is_solvable(map_data [][]int64) bool {
 // contribution_from_above_neighbor determines whether the data in the position
 // immediately above the current position is valid and, if so,
 // add its number of valid path to this position's
-func contribution_from_above_neighbor(row, column int, map_data *[][]int64) int64 {
+func contribution_from_above_neighbor(row, column int, map_data [][]int64) int64 {
   if row <= 0 {
     return 0
   }
 
-  temp_value := (*map_data)[row-1][column]
-  if (*map_data)[row-1][column] == BLOCKED {
+  temp_value := map_data[row-1][column]
+  if map_data[row-1][column] == BLOCKED {
     return 0
   }
 
@@ -116,21 +116,21 @@ func contribution_from_above_neighbor(row, column int, map_data *[][]int64) int6
     time.Sleep(1 * time.Nanosecond)
   }
 
-  return (*map_data)[row-1][column]
+  return map_data[row-1][column]
 }
 
 // contribution_from_right_neighbor determines whether the data in the 
 // position immediately to the right of the current position is valid 
 // and, if so, add its number of valid path to this position's
-func contribution_from_right_neighbor(row, column int, map_data *[][]int64) int64 {
-  map_width := len(*map_data)
+func contribution_from_right_neighbor(row, column int, map_data [][]int64) int64 {
+  map_width := len(map_data)
 
   // if we are in the right-most column, there is no valid right neighbor
   if column >= map_width - 1 {
     return 0
   }
 
-  temp_value := (*map_data)[row][column+1]
+  temp_value := map_data[row][column+1]
 
   // if the right-neighbor is blocked, we cannot use its value
   if temp_value == BLOCKED {
@@ -147,7 +147,7 @@ func contribution_from_right_neighbor(row, column int, map_data *[][]int64) int6
       }
     }
     time.Sleep(1 * time.Nanosecond)
-    temp_value = (*map_data)[row][column+1]
+    temp_value = map_data[row][column+1]
   }
 
   return temp_value

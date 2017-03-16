@@ -26,8 +26,8 @@ func linear_populate_map(map_data [][]int64) {
         continue
       }
 
-      map_data[row][column] += contribution_from_above_neighbor(row, column, &map_data)
-      map_data[row][column] += contribution_from_right_neighbor(row, column, &map_data)
+      map_data[row][column] += contribution_from_above_neighbor(row, column, map_data)
+      map_data[row][column] += contribution_from_right_neighbor(row, column, map_data)
     }
   }
 }
