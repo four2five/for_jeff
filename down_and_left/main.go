@@ -4,8 +4,6 @@ import (
   "fmt"
   "runtime"
   "time"
-
-  "github.com/golang-collections/go-datastructures/queue"
 )
 
 ////////////////////
@@ -15,14 +13,14 @@ import (
 
 const(
   DEBUG bool = false
-  //DEBUG bool = true
+  // DEBUG bool = true
   TRACE bool = false
   OPEN int64 = 0
   BLOCKED int64 = -1
   ENQUEUED int64 = -2
   PROCESSING int64 = -3
-  NUM_THREADS int = 2
-  INPUT_MAP_WIDTH int = 100
+  NUM_THREADS int = 4
+  INPUT_MAP_WIDTH int = 4
 )
 
 type position struct{
@@ -104,10 +102,9 @@ func contribution_from_above_neighbor(row, column int, map_data *[][]int64) int6
       }
     }
     time.Sleep(1 * time.Nanosecond)
-    temp_value = (*map_data)[row-1][column]
   }
 
-  return temp_value
+  return (*map_data)[row-1][column]
 }
 
 // contribution_from_right_neighbor determines whether the data in the 
@@ -122,6 +119,7 @@ func contribution_from_right_neighbor(row, column int, map_data *[][]int64) int6
   }
 
   temp_value := (*map_data)[row][column+1]
+
   // if the right-neighbor is blocked, we cannot use its value
   if temp_value == BLOCKED {
     return 0
@@ -140,7 +138,7 @@ func contribution_from_right_neighbor(row, column int, map_data *[][]int64) int6
     temp_value = (*map_data)[row][column+1]
   }
 
-  return (*map_data)[row][column+1]
+  return temp_value
 }
 
 // initialize_map_data sets the number of valid paths for the starting-point
@@ -153,27 +151,27 @@ func initialize_map_data(map_data [][]int64) {
 // initialize_map_data sets the number of valid paths for the starting-point
 // to 1. Then enqueues the positions to the left and right of the
 // starting-point.
-func initialize_map_data_with_rb(map_data *[][]int64, my_queue *queue.RingBuffer) {
+func initialize_map_data_with_channel(map_data *[][]int64, buf_channel chan position) {
   map_width := len(*map_data)
   (*map_data)[0][map_width-1] = 1
 
   // For maps that are at least 2x2, add the squares to the left and
-  // below of the starting point to the queue
+  // below of the starting point to the channel
   if map_width > 1 {
-    enqueue_position_if_valid(0, map_width-2, map_data, my_queue)
-    enqueue_position_if_valid(1, map_width-1, map_data, my_queue)
+    enqueue_position_if_valid(0, map_width-2, map_data, buf_channel)
+    enqueue_position_if_valid(1, map_width-1, map_data, buf_channel)
   }
 }
 
 // enqueue_position_if_valid does some basic bounds checking and value
 // validation prior to enqueueing the specified position
-func enqueue_position_if_valid(row, column int, map_data *[][]int64, my_queue *queue.RingBuffer){
+func enqueue_position_if_valid(row, column int, map_data *[][]int64, buf_channel chan position){
   map_width := len(*map_data)
 
   // Verify that row and column values are valid and that the position is open
   if row < map_width && column >= 0 && (*map_data)[row][column] == OPEN {
     (*map_data)[row][column] = ENQUEUED
-    my_queue.Put(&position{row,column})
+    buf_channel <- position{row,column}
   }
 }
 
@@ -186,51 +184,24 @@ func extract_final_result(map_data [][]int64) int64 {
 
 // populate_map_with_rb computes the valid paths to each position
 // reachable from the starting-point.
-func populate_map_with_rb_and_threads(map_data *[][]int64, my_queue *queue.RingBuffer) {
-  output_messages := make(chan string, NUM_THREADS)
+func populate_map_with_rb_and_threads(map_data *[][]int64, buf_channel chan position) {
+  func_done_chan := make(chan bool, NUM_THREADS)
   for i := 0; i < NUM_THREADS; i++ {
-    go populate_map_with_rb(map_data, my_queue, output_messages)
+    go populate_map_with_rb(map_data, buf_channel, func_done_chan)
   }
+
   for i := 0; i < NUM_THREADS; i++ {
-    to_print := <-output_messages
-    if DEBUG {
-      fmt.Println(to_print)
-    }
+    <-func_done_chan
   }
 }
 
 // populate_map_with_rb computes the valid paths to each position
 // reachable from the starting-point.
-func populate_map_with_rb(map_data *[][]int64, my_queue *queue.RingBuffer, output_message chan string) {
-  // for debug purposes only
-  max_queue_size := my_queue.Len()
-  loop_counter := 0
-  if nil != output_message {
-    defer func(output_message chan string) { output_message <- fmt.Sprintf("!!!!! loop counter: %d max queue size: %d\n", loop_counter, max_queue_size)}(output_message)
-  }
+func populate_map_with_rb(map_data *[][]int64, buf_channel chan position, output_message chan bool) {
 
-  for true {
-    temp, err := my_queue.Get()
-    if err != nil {
-      fmt.Errorf("Received error %+v while dequeueing", err)
-      return
-    }
-    if my_queue.IsDisposed() {
-      fmt.Printf("Queue has been disposed, guess that we're  done")
-      return
-    }
-    loop_counter++
-    if nil != err {
-    }
-    temp_position, _ := temp.(*position)
-    if DEBUG && TRACE {
-      fmt.Printf("dequeue val: %+v queue len: %d\n", temp_position, my_queue.Len())
-    }
-
-    // Mark the position as being in-process
-    (*map_data)[temp_position.row][temp_position.column] = PROCESSING
+  for temp_position := range buf_channel {
     if DEBUG {
-      fmt.Printf("PROCESSING [%d,%d]\n", temp_position.row, temp_position.column)
+      fmt.Printf("processing %v\n", temp_position)
     }
 
     pos_value := int64(0)
@@ -244,31 +215,20 @@ func populate_map_with_rb(map_data *[][]int64, my_queue *queue.RingBuffer, outpu
     }
 
     // enqueue the fields to the left and down, if they are valid 
-    enqueue_position_if_valid(temp_position.row, temp_position.column-1, map_data, my_queue)
+    enqueue_position_if_valid(temp_position.row, temp_position.column-1, map_data, buf_channel)
     if DEBUG && TRACE {
       fmt.Printf("pos %d, %d possibly enqueued %d, %d\n", temp_position.row, temp_position.column, temp_position.row, temp_position.column-1)
     }
 
-    enqueue_position_if_valid(temp_position.row+1, temp_position.column, map_data, my_queue)
+    enqueue_position_if_valid(temp_position.row+1, temp_position.column, map_data, buf_channel)
     if DEBUG && TRACE {
       fmt.Printf("pos %d, %d possibly enqueued %d, %d\n", temp_position.row, temp_position.column, temp_position.row+1, temp_position.column)
     }
 
-    /*
-    if my_queue.Len() > max_queue_size {
-      max_queue_size = my_queue.Len()
-    }
-    */
-
-    // if this is the destination, we are done. Mark the queue as disposed.
-    // This will free any threads waiting on the queue because it is empty.
+    // If this is the destination, we are done.
     if temp_position.row == len(*map_data)-1 && temp_position.column == 0 {
-      my_queue.Dispose()
+      close(buf_channel)
     }
-  }
-
-  if DEBUG && nil == output_message {
-    fmt.Printf("!!!!! loop counter: %d max queue size: %d\n", loop_counter, max_queue_size)
   }
 }
 
@@ -297,34 +257,40 @@ func linear_solve_field(map_data [][]int64) int64 {
   }
 
   initialize_map_data(map_data)
-  //print_map(map_data)
+  if DEBUG {
+    print_map(map_data)
+  }
   linear_populate_map(map_data)
   return extract_final_result(map_data)
 }
 
 // solve_field_with_queue uses a queue as the control mechanism when
 // finding all of the valid paths from the top-right corner to the bottom-left corner.
-func solve_field_with_queue(map_data [][]int64) int64 {
+func solve_field_with_channel(map_data [][]int64) int64 {
   if !map_is_solvable(map_data) {
     return 0
   }
 
-  my_rb := queue.NewRingBuffer(uint64(2*len(map_data)))
-  initialize_map_data_with_rb(&map_data, my_rb)
-  populate_map_with_rb(&map_data, my_rb, nil)
+  buf_channel := make(chan position, 2*len(map_data))
+
+  initialize_map_data_with_channel(&map_data, buf_channel)
+  populate_map_with_rb(&map_data, buf_channel, nil)
+
   return extract_final_result(map_data)
 }
 
-// solve_field_with_queue_and_threads uses a queue as the control mechanism when
+// solve_field_with_channel_and_threads uses a channel as the control mechanism when
 // finding all of the valid paths from the top-right corner to the bottom-left corner.
-func solve_field_with_queue_and_threads(map_data [][]int64) int64 {
+func solve_field_with_channel_and_threads(map_data [][]int64) int64 {
   if !map_is_solvable(map_data) {
     return 0
   }
 
-  my_rb := queue.NewRingBuffer(uint64(len(map_data)))
-  initialize_map_data_with_rb(&map_data, my_rb)
-  populate_map_with_rb_and_threads(&map_data, my_rb)
+  buf_channel := make(chan position, 2*len(map_data))
+
+  initialize_map_data_with_channel(&map_data, buf_channel)
+  populate_map_with_rb(&map_data, buf_channel, nil)
+
   return extract_final_result(map_data)
 }
 
@@ -342,61 +308,61 @@ func print_map(map_data [][]int64){
 
 func main() {
   var linear_elapsed time.Duration
-  var queue_elapsed time.Duration
-  var queue_and_threads_elapsed time.Duration
+  var channel_elapsed time.Duration
+  var channel_and_threads_elapsed time.Duration
   var linear_num_paths int64
-  var queue_num_paths int64
-  var queue_and_threads_num_paths int64
+  var channel_num_paths int64
+  var channel_and_threads_num_paths int64
 
   // Set gomaxprocs to 4
   runtime.GOMAXPROCS(NUM_THREADS)
 
   {
     linear_input_map := generate_open_map(INPUT_MAP_WIDTH)
-    //make_map_1(input_map)
-    //make_map_2(input_map)
 
-    //fmt.Println("Input Map")
-    //print_map(input_map)
+    if DEBUG {
+      fmt.Println("Input Map")
+      print_map(linear_input_map)
+    }
 
     start := time.Now()
     linear_num_paths = linear_solve_field(linear_input_map)
     linear_elapsed = time.Since(start)
-    fmt.Println("Populated Map linear")
+    fmt.Println("Populated Map with linear approach")
     print_map(linear_input_map)
   }
 
   {
     input_map := generate_open_map(INPUT_MAP_WIDTH)
-    //make_map_1(input_map)
-    //make_map_2(input_map)
 
-    //fmt.Println("Input Map")
-    //print_map(input_map)
+    if DEBUG {
+      //fmt.Println("Input Map")
+      //print_map(input_map)
+    }
 
     start := time.Now()
-    queue_num_paths = solve_field_with_queue(input_map)
-    queue_elapsed = time.Since(start)
-    fmt.Println("Populated Map queue")
+    channel_num_paths = solve_field_with_channel(input_map)
+    channel_elapsed = time.Since(start)
+    fmt.Println("Populated Map with channel approach")
     print_map(input_map)
   }
 
   {
     input_map := generate_open_map(INPUT_MAP_WIDTH)
-    //make_map_1(input_map)
-    //make_map_2(input_map)
 
-    //fmt.Println("Input Map")
-    //print_map(input_map)
+    if DEBUG {
+      fmt.Println("Input Map")
+      print_map(input_map)
+    }
 
     start := time.Now()
-    queue_and_threads_num_paths = solve_field_with_queue_and_threads(input_map)
-    queue_and_threads_elapsed = time.Since(start)
-    fmt.Println("Populated Map queue & threads")
+    channel_and_threads_num_paths = solve_field_with_channel_and_threads(input_map)
+    channel_and_threads_elapsed = time.Since(start)
+    fmt.Println("Populated Map channel & threads approach")
     print_map(input_map)
   }
 
   fmt.Printf("Number of paths: %d linear solve elapsed time: %v\n", linear_num_paths, linear_elapsed)
-  fmt.Printf("Number of paths: %d queue solve elapsed time: %v\n", queue_num_paths, queue_elapsed)
-  fmt.Printf("Number of paths: %d queue with %d threads solve elapsed time: %v\n", queue_and_threads_num_paths, NUM_THREADS, queue_and_threads_elapsed)
+  fmt.Printf("Number of paths: %d channel solve elapsed time: %v\n", channel_num_paths, channel_elapsed)
+  fmt.Printf("Number of paths: %d channel with %d threads solve elapsed time: %v\n", channel_and_threads_num_paths, NUM_THREADS, channel_and_threads_elapsed)
 }
